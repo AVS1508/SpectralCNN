@@ -4,9 +4,11 @@ import torchaudio
 import librosa as lb
 from tqdm import tqdm
 import matplotlib.pyplot as plt
-
+from torchvision.transforms import v2 as vision_transforms
 from src.utils import *
 from src.configuration import *
+import skimage
+import torchvision
 
 
 def are_features_extracted(save_path: str) -> bool:
@@ -35,6 +37,10 @@ def generate_spectrograms(data_path: str, save_path: str):
         data_path (str): Original dataset path
         save_path (str): Path to save the extracted features
     """
+    transforms = vision_transforms.Compose([
+            vision_transforms.Pad(10, padding_mode="constant", fill=255),
+            vision_transforms.Resize((432, 288), antialias=True),
+    ])
     # Iterate over each genre
     for genre in tqdm(os.listdir(data_path), desc="Genres Processed", dynamic_ncols=True):
         genre_path = os.path.join(data_path, genre)
@@ -55,16 +61,15 @@ def generate_spectrograms(data_path: str, save_path: str):
             waveform, sample_rate = torchaudio.load(song_path)
             
             # Compute spectrogram, mel spectrogram and mfcc features
-            specgram = lb.power_to_db(T.Spectrogram()(waveform)[0])
-            melspecgram = lb.power_to_db(T.MelSpectrogram(sample_rate=sample_rate, n_mels=64)(waveform)[0])
-            mfcc = lb.power_to_db(T.MFCC(sample_rate=sample_rate)(waveform)[0])
+            specgram = T.AmplitudeToDB()(T.Spectrogram()(waveform)[0])
+            melspecgram = T.AmplitudeToDB()(T.MelSpectrogram(sample_rate=sample_rate, n_mels=64)(waveform)[0])
+            mfcc = T.AmplitudeToDB()(T.MFCC(sample_rate=sample_rate)(waveform)[0])
             features = {
                 "waveform": waveform,
                 "spectrogram": specgram,
                 "melspectrogram": melspecgram,
                 "mfcc": mfcc
             }
-            
             # Iterate over each feature extracted
             for feature_name in features:
                 feature_save_path = os.path.join(song_save_path, feature_name)
@@ -76,5 +81,5 @@ def generate_spectrograms(data_path: str, save_path: str):
                     # Save the extracted feature as an image
                     plt.imshow(features[feature_name], origin="lower", cmap="viridis", interpolation="nearest", aspect="auto")
                     plt.axis('off')
-                    plt.savefig(feature_save_path + IMG_EXTENSION, bbox_inches='tight', pad_inches=0)
+                    plt.savefig(feature_save_path + IMG_EXTENSION, bbox_inches='tight', pad_inches=0.1)
                     plt.close()

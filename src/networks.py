@@ -19,19 +19,17 @@ class Conv_2D(nn.Module):
     out = self.dropout(x)
     return out
 
-class ConvolutionalNeuralNetwork(nn.Module):
-  def __init__(self, num_channels=16, sample_rate=22050, n_fft=1024, f_min=0.0, f_max=11025.0, num_mels=128, num_classes=10):
-    super(ConvolutionalNeuralNetwork, self).__init__()
-    self.melspec = T.MelSpectrogram(sample_rate=sample_rate, n_fft=n_fft, f_min=f_min, f_max=f_max, n_mels=num_mels)
-    self.amplitude_to_db = T.AmplitudeToDB()
-    self.input_batch_norm = nn.BatchNorm2d(1)
+class SpectrogramCNN(nn.Module):
+  def __init__(self, num_channels=16, num_classes=10):
+    super().__init__()
+    self.input_batch_norm = nn.BatchNorm2d(3)
 
     # convolutional layers
-    self.layer1 = Conv_2D(1, num_channels, pooling=(2, 3))
-    self.layer2 = Conv_2D(num_channels, num_channels, pooling=(3, 4))
-    self.layer3 = Conv_2D(num_channels, num_channels * 2, pooling=(2, 5))
-    self.layer4 = Conv_2D(num_channels * 2, num_channels * 2, pooling=(3, 3))
-    self.layer5 = Conv_2D(num_channels * 2, num_channels * 4, pooling=(3, 4))
+    self.layer1 = Conv_2D(3, num_channels, pooling=(3, 2))
+    self.layer2 = Conv_2D(num_channels, num_channels, pooling=(4, 3))
+    self.layer3 = Conv_2D(num_channels, num_channels * 2, pooling=(5, 4))
+    self.layer4 = Conv_2D(num_channels * 2, num_channels * 2, pooling=(2, 3))
+    self.layer5 = Conv_2D(num_channels * 2, num_channels * 4, pooling=(2, 4))
 
     # dense layers
     self.dense1 = nn.Linear(num_channels * 4, num_channels * 4)
@@ -40,31 +38,38 @@ class ConvolutionalNeuralNetwork(nn.Module):
     self.dropout = nn.Dropout(0.5)
     self.relu = nn.ReLU()
 
-  def forward(self, wav):
-    # input Preprocessing
-    out = self.melspec(wav)
-    out = self.amplitude_to_db(out)
-
+  def forward(self, spectrogram):
     # input batch normalization
-    out = out.unsqueeze(1)
+    out = spectrogram.float()
     out = self.input_batch_norm(out)
-
+    print(out.shape)
     # convolutional layers
     out = self.layer1(out)
+    print(out.shape)
     out = self.layer2(out)
+    print(out.shape)
     out = self.layer3(out)
+    print(out.shape)
     out = self.layer4(out)
+    print(out.shape)
     out = self.layer5(out)
+    print(out.shape)
 
     # reshape. (batch_size, num_channels, 1, 1) -> (batch_size, num_channels)
     out = out.reshape(len(out), -1)
+    print(out.shape)
 
     # dense layers
     out = self.dense1(out)
+    print(out.shape)
     out = self.dense_bn(out)
+    print(out.shape)
     out = self.relu(out)
+    print(out.shape)
     out = self.dropout(out)
+    print(out.shape)
     out = self.dense2(out)
+    print(out.shape)
 
     return out
   
@@ -89,6 +94,7 @@ class ResNet18(nn.Module):
     # optimizer = torch.optim.Adam(params_to_update, lr=0.001)
 
   def forward(self, x):
+    x = x.float()
     return self.resnet18(x)
   
 class EfficientNetV2S(nn.Module):
@@ -100,7 +106,7 @@ class EfficientNetV2S(nn.Module):
     for parameter in self.effnet_v2s.parameters():
       parameter.requires_grad = False
     # Replacing the Last Fully Connected Layer for Transfer Learning
-    self.effnet_v2s.classifier = nn.Linear(self.effnet_v2s.classifier.in_features, num_classes)
+    self.effnet_v2s.classifier[1] = nn.Linear(self.effnet_v2s.classifier[1].in_features, num_classes)
     # Updating the Weights and Bias of the last layer
     params_to_update = []
     for _, param in self.effnet_v2s.named_parameters():
@@ -112,4 +118,5 @@ class EfficientNetV2S(nn.Module):
     # optimizer = torch.optim.Adam(params_to_update, lr=0.001)
     
   def forward(self, x):
+    x = x.float()
     return self.effnet_v2s(x)
